@@ -1,0 +1,16 @@
+D:\C#\WebSocket\client\WebServer\WebServer\bin\Debug\net9.0-windows\WebServer.exe
+D:\C#\WebSocket\client\WebServer\WebServer\bin\Debug\net9.0-windows\WebServer.deps.json
+D:\C#\WebSocket\client\WebServer\WebServer\bin\Debug\net9.0-windows\WebServer.runtimeconfig.json
+D:\C#\WebSocket\client\WebServer\WebServer\bin\Debug\net9.0-windows\WebServer.dll
+D:\C#\WebSocket\client\WebServer\WebServer\bin\Debug\net9.0-windows\WebServer.pdb
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.Form1.resources
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.csproj.GenerateResource.cache
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.GeneratedMSBuildEditorConfig.editorconfig
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.AssemblyInfoInputs.cache
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.AssemblyInfo.cs
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.csproj.CoreCompileInputs.cache
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.dll
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\refint\WebServer.dll
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.pdb
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\WebServer.genruntimeconfig.cache
+D:\C#\WebSocket\client\WebServer\WebServer\obj\Debug\net9.0-windows\ref\WebServer.dll
