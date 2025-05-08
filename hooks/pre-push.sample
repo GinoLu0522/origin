@@ -48,6 +48,12 @@ do
 			exit 1
 		fi
 	fi
+
+	#!/bin/bash
+
+	# 寄信通知（以 mailx 為例）
+	echo "有人準備推送程式碼到遠端分支" | mail -s "Git Push 通知" Gino.Lu@ohmplus.com
+
 done
 
 exit 0
