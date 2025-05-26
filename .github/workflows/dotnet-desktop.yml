@@ -33,7 +33,8 @@ jobs:
       run: dotnet build ${{ env.Solution_Name }} --configuration Release --no-restore
 
     - name: Run tests
-      run: dotnet test ${{ env.Test_Project_Path }} --configuration Release --no-build --verbosity normal
+      working-directory: WebSocket/client/WebServer/WebServer
+      run: dotnet test WebServer.csproj --configuration Release --no-build
 
   gpt-code-review:
     name: GPT Auto Code Review (C#)
