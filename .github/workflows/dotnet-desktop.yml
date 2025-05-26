@@ -10,28 +10,30 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: windows-latest
-    env:
-      Solution_Name: WebServer.sln                # ✅ 替換為你的 .sln 名稱
-      Test_Project_Path: WebSocket/client/WebServer/WebServer/WebServer.csproj  # ✅ 替換為你的 test 專案路徑
+  runs-on: windows-latest
+  env:
+    Solution_Name: WebServer.sln
+    Test_Project_Path: WebSocket/client/WebServer/WebServer/WebServer.csproj
 
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore ${{ env.Solution_Name }}
+    - name: Restore NuGet packages
+      run: dotnet restore ${{ env.Solution_Name }}
 
-      - name: Build solution
-        run: dotnet build ${{ env.Solution_Name }} --configuration Release --no-restore
+    - name: Build solution
+      run: dotnet build ${{ env.Solution_Name }} --configuration Release --no-restore
 
-      - name: Run tests
-        run: dotnet test ${{ env.Test_Project_Path }} --no-build --verbosity normal
+    - name: Run tests
+      run: dotnet test ${{ env.Test_Project_Path }} --configuration Release --no-build --verbosity normal
 
   gpt-code-review:
     name: GPT Auto Code Review (C#)
