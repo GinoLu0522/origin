@@ -2,7 +2,7 @@ name: .NET + GPT Code Review
 
 on:
   pull_request:
-    branches: [ "master" ]
+    branches: [ "develop" ]
 
 permissions:
   contents: read
