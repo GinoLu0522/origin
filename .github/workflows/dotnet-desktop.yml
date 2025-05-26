@@ -12,12 +12,17 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     env:
-      Solution_Name: WebServer.sln                # ✅ 請替換成你的 solution 名稱
-      Test_Project_Path: server/WebServer/WebServer/WebServer.csproj  # ✅ 請替換成你的測試專案路徑
+      Solution_Name: WebServer.sln
+      Test_Project_Path: server/WebServer/WebServer/WebServer.csproj
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
       - name: Restore NuGet packages
         run: dotnet restore ${{ env.Solution_Name }}
