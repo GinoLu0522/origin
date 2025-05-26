@@ -26,33 +26,17 @@ jobs:
       Test_Project_Path: WebSocket/client/WebServer/WebServer/WebServer.csproj
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Setup .NET SDK
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-<<<<<<< HEAD
-      - name: Restore dependencies
-=======
       - name: Restore NuGet packages
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
         run: dotnet restore ${{ env.Solution_Name }}
 
-      - name: Build solution
-        run: dotnet build ${{ env.Solution_Name }} --configuration Release --no-restore
 
       - name: Run tests
-<<<<<<< HEAD
-        run: dotnet test ${{ env.Test_Project_Path }} --no-build --verbosity normal
-=======
         run: dotnet test ${{ env.Test_Project_Path }} --configuration Release --no-build
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
 
   gpt-code-review:
     name: GPT Auto Code Review (C#)
@@ -70,16 +54,12 @@ jobs:
         with:
           fetch-depth: 0
 
-<<<<<<< HEAD
-      - name: Get C# file diffs
-=======
+
       - name: Get changed C# files diff
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.cs' > cs.diff || true
           if [ ! -s cs.diff ]; then
-<<<<<<< HEAD
             echo "NO_CHANGES" > decision.txt
             exit 0
           fi
@@ -88,7 +68,6 @@ jobs:
         id: review
         run: |
           prompt="你是資深 C# 工程師，請針對以下程式碼變更提供建議（若無問題請回覆 approve）：\n\n$(cat cs.diff)"
-=======
             echo "✅ No C# code changes detected." > review.txt
             echo "approve" > decision.txt
             exit 0
@@ -98,7 +77,6 @@ jobs:
         id: gpt_review
         run: |
           prompt="你是資深 C# 工程師，請針對以下程式碼變更提供具體建議（若無問題請回覆 approve）：\n\n$(cat cs.diff)"
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
           response=$(curl -s https://api.openai.com/v1/chat/completions \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -H "Content-Type: application/json" \
@@ -118,11 +96,7 @@ jobs:
             echo "approve" > decision.txt
           fi
 
-<<<<<<< HEAD
-      - name: Leave review on PR
-=======
       - name: Submit GPT review to PR
->>>>>>> 24e49981179b95233a0a5214539055b4cbbc4eef
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO=${{ github.repository }}
