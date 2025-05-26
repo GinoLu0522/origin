@@ -12,20 +12,13 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     env:
-      Solution_Name: WebServer.sln                # ✅ 替換為你的 .sln 名稱
-      Test_Project_Path: server/WebServer/WebServer/WebServer.csproj  # ✅ 替換為你的 test 專案路徑
+      Solution_Name: WebServer.sln                # ✅ 請替換成你的 solution 名稱
+      Test_Project_Path: server/WebServer/WebServer/WebServer.csproj  # ✅ 請替換成你的測試專案路徑
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8 SDK
-
-    env:
-      Solution_Name: WebServer.sln
-      Test_Project_Path: WebSocket/client/WebServer/WebServer/WebServer.csproj
-
-    steps:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -33,7 +26,6 @@ jobs:
 
       - name: Restore NuGet packages
         run: dotnet restore ${{ env.Solution_Name }}
-
 
       - name: Run tests
         run: dotnet test ${{ env.Test_Project_Path }} --configuration Release --no-build
@@ -54,20 +46,11 @@ jobs:
         with:
           fetch-depth: 0
 
-
       - name: Get changed C# files diff
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.cs' > cs.diff || true
           if [ ! -s cs.diff ]; then
-            echo "NO_CHANGES" > decision.txt
-            exit 0
-          fi
-
-      - name: Ask GPT for review
-        id: review
-        run: |
-          prompt="你是資深 C# 工程師，請針對以下程式碼變更提供建議（若無問題請回覆 approve）：\n\n$(cat cs.diff)"
             echo "✅ No C# code changes detected." > review.txt
             echo "approve" > decision.txt
             exit 0
@@ -97,6 +80,8 @@ jobs:
           fi
 
       - name: Submit GPT review to PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO=${{ github.repository }}
