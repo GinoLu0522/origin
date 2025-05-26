@@ -11,7 +11,6 @@ permissions:
 jobs:
   build-and-test:
     runs-on: windows-latest
-<<<<<<< HEAD
     env:
       Solution_Name: WebServer.sln                # ✅ 替換為你的 .sln 名稱
       Test_Project_Path: server/WebServer/WebServer/WebServer.csproj  # ✅ 替換為你的 test 專案路徑
