@@ -7,40 +7,37 @@ on:
     branches: [ "master" ]
 
 env:
-  CODE_ROOT: server/WebServer  # 代码库根目录
-  SOLUTION_NAME: WebServer.sln  # ✅ 实际解决方案文件名
-  WAP_DIR: WebServer.WebServer  # WAP 项目目录
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
+  WAP_DIR: WebServer.Package  # 必须与实际目录名完全一致
 
 jobs:
   validate:
     runs-on: windows-latest
-    outputs:
-      valid: ${{ steps.path-check.outputs.valid }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - uses: actions/checkout@v4
+      
+    - name: Validate Paths
+      run: |
+        $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
+        $wapProjPath = "${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/${{ env.WAP_DIR }}.wapproj"
 
-      - name: Validate solution structure
-        id: path-check
-        run: |
-          $solutionPath = Join-Path -Path $env:CODE_ROOT -ChildPath $env:SOLUTION_NAME
-          $wapProjPath = Join-Path -Path $env:CODE_ROOT -ChildPath "$env:WAP_DIR\$env:WAP_DIR.wapproj"
+        Write-Output "##[group]路径验证信息"
+        Write-Output "解决方案路径: $solutionPath"
+        Write-Output "WAP路径: $wapProjPath"
+        Write-Output "##[endgroup]"
 
-          if (-not (Test-Path $solutionPath)) {
-            Write-Output "::error::Solution file $solutionPath not found"
-            Write-Output "valid=false" >> $env:GITHUB_OUTPUT
+        if (-not (Test-Path $solutionPath)) {
+            Write-Output "::error::Missing solution file"
             exit 1
-          }
+        }
 
-          if (-not (Test-Path $wapProjPath)) {
-            Write-Output "::error::WAP project $wapProjPath not found"
-            Write-Output "valid=false" >> $env:GITHUB_OUTPUT
+        if (-not (Test-Path $wapProjPath)) {
+            Write-Output "::error::Missing WAP project"
+            Get-ChildItem -Path "${{ env.CODE_ROOT }}" -Recurse
             exit 1
-          }
-
-          Write-Output "valid=true" >> $env:GITHUB_OUTPUT
+        }
+      shell: pwsh
 
   build:
     needs: validate
