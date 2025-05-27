@@ -1,0 +1,83 @@
+name: .NET Core Desktop CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'server/WebServer/**'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'server/WebServer/**'
+
+env:
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
+  BUILD_CONFIG: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64, x86]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8.x SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }}
+
+      - name: Build solution
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-restore --no-self-contained
+
+      - name: Run tests
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet test ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
+
+      - name: Publish app
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64, x86]
+
+    steps:
+      - name: Download published artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-${{ matrix.platform }}
+          path: ./artifacts
+
+      - name: Validate artifact exists
+        run: |
+          if (-not (Test-Path ./artifacts)) {
+            Write-Output "::error::Artifacts not found"
+            exit 1
+          }
+          Write-Output "Artifacts downloaded successfully."
