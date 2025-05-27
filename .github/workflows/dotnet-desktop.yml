@@ -17,7 +17,6 @@ jobs:
     strategy:
       matrix:
         configuration: [Release]
-        platform: [x64]
 
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +49,7 @@ jobs:
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }} /p:Platform="${{ matrix.platform }}"
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
 
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
@@ -59,5 +58,5 @@ jobs:
       - name: Upload build artifacts (optional)
         uses: actions/upload-artifact@v4
         with:
-          name: build_output_${{ matrix.platform }}
-          path: ${{ env.CODE_ROOT }}/bin  # 或你的輸出路徑
+          name: build_output
+          path: ${{ env.CODE_ROOT }}/bin
