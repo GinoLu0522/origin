@@ -7,20 +7,14 @@ on:
     branches: [ "master" ]
 
 env:
-  OVERRIDE_WAP_PATH: /d/SourceTreeTest/LocalCodeView/WebSocket/WebServer.Package/WebServer.Package.wapproj
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
+  WAP_DIR: WebServer.Package  # 必须与实际目录名完全一致
 
 jobs:
-  build:
+  validate:
+    runs-on: windows-latest
     steps:
-      - name: Override path check
-        run: |
-          if (Test-Path $env:OVERRIDE_WAP_PATH) {
-            Write-Output "::warning::Using override path"
-            $realPath = $env:OVERRIDE_WAP_PATH
-          } else {
-            $realPath = "${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/${{ env.WAP_DIR }}.wapproj"
-          }
-          Write-Output "REAL_WAP_PATH=$realPath" >> $env:GITHUB_ENV
       - uses: actions/checkout@v4
 
       - name: Debug - List CODE_ROOT directory
