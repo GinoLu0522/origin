@@ -9,10 +9,9 @@ on:
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  WAP_DIR: WebServer.Package
 
 jobs:
-  validate:
+  build:
     runs-on: windows-latest
 
     strategy:
@@ -28,24 +27,11 @@ jobs:
         working-directory: ${{ env.CODE_ROOT }}
         shell: pwsh
 
-      - name: Validate Paths
+      - name: Validate solution file exists
         run: |
           $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-          $wapProjPath = "${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/${{ env.WAP_DIR }}.wapproj"
-
-          Write-Output "##[group]路徑驗證資訊"
-          Write-Output "解決方案路徑: $solutionPath"
-          Write-Output "WAP 路徑: $wapProjPath"
-          Write-Output "##[endgroup]"
-
           if (-not (Test-Path $solutionPath)) {
               Write-Output "::error::Missing solution file"
-              exit 1
-          }
-
-          if (-not (Test-Path $wapProjPath)) {
-              Write-Output "::error::Missing WAP project"
-              Get-ChildItem -Path "${{ env.CODE_ROOT }}" -Recurse
               exit 1
           }
         shell: pwsh
@@ -59,50 +45,19 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore dependencies
-        run: |
-          msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
         working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
       - name: Build solution
-        run: |
-          msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }} /p:Platform="${{ matrix.platform }}"
         working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }} /p:Platform="${{ matrix.platform }}"
 
       - name: Run tests
-        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
         working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
 
-      - name: Decode signing certificate
-        run: |
-          [IO.File]::WriteAllBytes(
-            "GitHubActionsWorkflow.pfx",
-            [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
-          )
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
-        shell: pwsh
-
-      - name: Build MSIX package
-        run: |
-          msbuild $env:WAP_DIR.wapproj `
-            /p:Configuration=${{ matrix.configuration }} `
-            /p:AppxBundle=Always `
-            /p:UapAppxPackageBuildMode=StoreUpload `
-            /p:AppxBundlePlatforms="${{ matrix.platform }}" `
-            /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
-            /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
-        shell: pwsh
-
-      - name: Cleanup certificate
-        run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
-        shell: pwsh
-
-      - name: Upload artifact
+      - name: Upload build artifacts (optional)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.WAP_DIR }}_${{ matrix.platform }}
-          path: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/AppPackages
+          name: build_output_${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/bin  # 或你的輸出路徑
