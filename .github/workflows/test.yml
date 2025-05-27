@@ -1,39 +1,66 @@
 name: .NET Core Desktop CI/CD
 
 on:
+  workflow_dispatch:
   push:
-    branches: ["master"]
+    branches:
+      - master
+      - main
+    paths:
+      - 'server/WebServer/**'
   pull_request:
-    branches: ["master"]
+    branches:
+      - master
+    paths:
+      - 'server/WebServer/**'
 
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
+  WAP_DIR: WebServer.Package
+  BUILD_CONFIG: Release
 
 jobs:
-  build:
+  validate:
     runs-on: windows-latest
+    outputs:
+      wap_exists: ${{ steps.check-wap.outputs.exists }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Validate project structure
+        id: check-wap
+        run: |
+          $solutionPath = Join-Path -Path $env:CODE_ROOT -ChildPath $env:SOLUTION_NAME
+          $wapProjectPath = Join-Path -Path $env:CODE_ROOT -ChildPath "$env:WAP_DIR\$env:WAP_DIR.wapproj"
+
+          if (-not (Test-Path $solutionPath)) {
+            Write-Output "::error::Solution file not found: $solutionPath"
+            exit 1
+          }
+
+          if (Test-Path $wapProjectPath) {
+            Write-Output "::notice::WAP project found at $wapProjectPath"
+            Write-Output "exists=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "::warning::WAP project missing at $wapProjectPath"
+            Write-Output "exists=false" >> $env:GITHUB_OUTPUT
+          }
+
+  build:
+    needs: validate
+    if: needs.validate.outputs.wap_exists == 'true'
+    runs-on: windows-latest
     strategy:
       matrix:
-        configuration: [Release]
+        platform: [x64, x86]
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Debug - List CODE_ROOT directory
-        run: Get-ChildItem -Recurse
-        working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
-
-      - name: Validate solution file exists
-        run: |
-          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-          if (-not (Test-Path $solutionPath)) {
-              Write-Output "::error::Missing solution file"
-              exit 1
-          }
-        shell: pwsh
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
@@ -45,18 +72,66 @@ jobs:
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ env.BUILD_CONFIG }}
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
+        run: |
+          msbuild $env:SOLUTION_NAME `
+            /p:Configuration=${{ env.BUILD_CONFIG }} `
+            /p:Platform="${{ matrix.platform }}" `
+            /p:DeployOnBuild=true `
+            /p:GenerateLibraryLayout=true
 
-      - name: Run tests
+      - name: Run unit tests
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
+        run: dotnet test --configuration ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
 
-      - name: Upload build artifacts (optional)
+      - name: Decode signing certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          [IO.File]::WriteAllBytes(
+            "GitHubActionsWorkflow.pfx",
+            [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
+          )
+
+      - name: Build MSIX package
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          msbuild "${{ env.WAP_DIR }}.wapproj" `
+            /p:Configuration=${{ env.BUILD_CONFIG }} `
+            /p:AppxBundle=Always `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:AppxBundlePlatforms="${{ matrix.platform }}" `
+            /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
+            /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
+
+      - name: Cleanup certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build_output
-          path: ${{ env.CODE_ROOT }}/bin
+          name: msix-package-${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/AppPackages
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: msix-package-${{ matrix.platform }}
+          path: ./artifacts
+
+      - name: Validate package
+        run: |
+          $package = Get-ChildItem -Path ./artifacts -Filter *.msix -Recurse | Select-Object -First 1
+          if (-not $package) {
+            Write-Output "::error::No MSIX package found"
+            exit 1
+          }
+          Write-Output "Package found at: $($package.FullName)"
