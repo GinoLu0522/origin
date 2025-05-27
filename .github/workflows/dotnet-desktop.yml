@@ -59,30 +59,32 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore dependencies
-        working-directory: ${{ env.CODE_ROOT }}
         run: |
           msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
 
       - name: Build solution
-        working-directory: ${{ env.CODE_ROOT }}
         run: |
           msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }} /p:Platform="${{ matrix.platform }}"
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
 
       - name: Run tests
-        working-directory: ${{ env.CODE_ROOT }}
         run: dotnet test --configuration ${{ matrix.configuration }} --no-build
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
 
       - name: Decode signing certificate
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         run: |
           [IO.File]::WriteAllBytes(
             "GitHubActionsWorkflow.pfx",
             [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
           )
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         shell: pwsh
 
       - name: Build MSIX package
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         run: |
           msbuild $env:WAP_DIR.wapproj `
             /p:Configuration=${{ matrix.configuration }} `
@@ -91,11 +93,12 @@ jobs:
             /p:AppxBundlePlatforms="${{ matrix.platform }}" `
             /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
             /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         shell: pwsh
 
       - name: Cleanup certificate
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         shell: pwsh
 
       - name: Upload artifact
