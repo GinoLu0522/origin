@@ -20,28 +20,18 @@ jobs:
     - name: Validate Paths
       run: |
         $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-        $wapProjPath = "${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/${{ env.WAP_DIR }}.wapproj"
-
         Write-Output "##[group]路径验证信息"
         Write-Output "解决方案路径: $solutionPath"
-        Write-Output "WAP路径: $wapProjPath"
         Write-Output "##[endgroup]"
 
         if (-not (Test-Path $solutionPath)) {
             Write-Output "::error::Missing solution file"
             exit 1
         }
-
-        if (-not (Test-Path $wapProjPath)) {
-            Write-Output "::error::Missing WAP project"
-            Get-ChildItem -Path "${{ env.CODE_ROOT }}" -Recurse
-            exit 1
-        }
       shell: pwsh
 
   build:
     needs: validate
-    if: needs.validate.outputs.valid == 'true'
     strategy:
       matrix:
         configuration: [Release]
@@ -81,7 +71,8 @@ jobs:
           [IO.File]::WriteAllBytes(
             "GitHubActionsWorkflow.pfx",
             [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
-          
+          )
+
       - name: Build MSIX package
         working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         run: |
