@@ -10,7 +10,11 @@ namespace WebServer
     public Form1()
     {
       InitializeComponent();
+<<<<<<< HEAD
             //12378910
+=======
+            //123561123123
+>>>>>>> 381c390f67c4a4600ad00e6590434da6d6ce8fcc
     }
 
     private async void button1_Click(object sender, EventArgs e)
