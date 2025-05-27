@@ -1,73 +1,43 @@
-name: .NET Core Desktop CI/CD
+name: Auto Code Review
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - master
-      - main
-    paths:
-      - 'server/WebServer/**'
   pull_request:
-    branches:
-      - master
-    paths:
-      - 'server/WebServer/**'
-
-env:
-  CODE_ROOT: server/WebServer
-  SOLUTION_NAME: WebServer.sln
-  WAP_DIR: WebServer.Package
-  BUILD_CONFIG: Release
+    types: [opened, synchronize, reopened]
 
 jobs:
-  validate:
-    runs-on: windows-latest
-    outputs:
-      wap_exists: ${{ steps.check-wap.outputs.exists }}
+  review:
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout PR code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Validate project structure
-        id: check-wap
+      - name: Get diff
+        id: get_diff
         run: |
-          $solutionPath = Join-Path -Path $env:CODE_ROOT -ChildPath $env:SOLUTION_NAME
-          $wapProjectPath = Join-Path -Path $env:CODE_ROOT -ChildPath "$env:WAP_DIR\$env:WAP_DIR.wapproj"
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > pr.diff
+          echo "::set-output name=diff::$(cat pr.diff | base64 -w 0)"
 
-          if (-not (Test-Path $solutionPath)) {
-            Write-Output "::error::Solution file not found: $solutionPath"
-            exit 1
-          }
-
-          if (Test-Path $wapProjectPath) {
-            Write-Output "::notice::WAP project found at $wapProjectPath"
-            Write-Output "exists=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Output "::warning::WAP project missing at $wapProjectPath"
-            Write-Output "exists=false" >> $env:GITHUB_OUTPUT
-          }
-
-  deploy:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64, x86]
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
+      - name: Call GPT for review
+        id: gpt_review
+        uses: actions/github-script@v6
         with:
-          name: msix-package-${{ matrix.platform }}
-          path: ./artifacts
+          script: |
+            const diff = Buffer.from(process.env.DIFF, 'base64').toString('utf8');
+            // 你可以用 OpenAI API 來分析 diff，這邊只示範回傳
+            return `Code diff for review:\n${diff.slice(0, 1000)}...`
 
-      - name: Validate package
-        run: |
-          $package = Get-ChildItem -Path ./artifacts -Filter *.msix -Recurse | Select-Object -First 1
-          if (-not $package) {
-            Write-Output "::error::No MSIX package found"
-            exit 1
-          }
-          Write-Output "Package found at: $($package.FullName)"
+        env:
+          DIFF: ${{ steps.get_diff.outputs.diff }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Post review comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### Automated Code Review by GPT
+            ```
+            ${{ steps.gpt_review.outputs.result }}
+            ```
