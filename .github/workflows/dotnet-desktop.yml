@@ -1,0 +1,107 @@
+name: .NET Core Desktop CI/CD
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CODE_ROOT: server/WebServer  # 代码库根目录
+  SOLUTION_NAME: WebServer.sln  # ✅ 实际解决方案文件名
+  WAP_DIR: WebServer.Package  # WAP 项目目录
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    outputs:
+      valid: ${{ steps.path-check.outputs.valid }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate solution structure
+        id: path-check
+        run: |
+          $solutionPath = Join-Path -Path $env:CODE_ROOT -ChildPath $env:SOLUTION_NAME
+          $wapProjPath = Join-Path -Path $env:CODE_ROOT -ChildPath "$env:WAP_DIR\$env:WAP_DIR.wapproj"
+
+          if (-not (Test-Path $solutionPath)) {
+            Write-Output "::error::Solution file $solutionPath not found"
+            Write-Output "valid=false" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+
+          if (-not (Test-Path $wapProjPath)) {
+            Write-Output "::error::WAP project $wapProjPath not found"
+            Write-Output "valid=false" >> $env:GITHUB_OUTPUT
+            exit 1
+          }
+
+          Write-Output "valid=true" >> $env:GITHUB_OUTPUT
+
+  build:
+    needs: validate
+    if: needs.validate.outputs.valid == 'true'
+    strategy:
+      matrix:
+        configuration: [Release]
+        platform: [x64, x86]
+
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore dependencies
+        working-directory: ${{ env.CODE_ROOT }}
+        run: |
+          msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
+
+      - name: Build solution
+        working-directory: ${{ env.CODE_ROOT }}
+        run: |
+          msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }} /p:Platform="${{ matrix.platform }}"
+
+      - name: Run tests
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
+
+      - name: Decode signing certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          [IO.File]::WriteAllBytes(
+            "GitHubActionsWorkflow.pfx",
+            [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
+          
+      - name: Build MSIX package
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          msbuild $env:WAP_DIR.wapproj `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:AppxBundle=Always `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:AppxBundlePlatforms="${{ matrix.platform }}" `
+            /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
+            /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
+
+      - name: Cleanup certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.WAP_DIR }}_${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/AppPackages
