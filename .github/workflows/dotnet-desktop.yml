@@ -9,7 +9,7 @@ on:
 env:
   CODE_ROOT: server/WebServer  # 代码库根目录
   SOLUTION_NAME: WebServer.sln  # ✅ 实际解决方案文件名
-  WAP_DIR: WebServer  # WAP 项目目录
+  WAP_DIR: WebServer.WebServer  # WAP 项目目录
 
 jobs:
   validate:
