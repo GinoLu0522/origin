@@ -46,6 +46,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-restore
 
 
+
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
         run: dotnet test ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
