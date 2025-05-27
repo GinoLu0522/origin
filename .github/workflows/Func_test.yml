@@ -60,20 +60,20 @@ jobs:
           path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
           retention-days: 7
 
-    deploy:
+      deploy:
       needs: build
       runs-on: windows-latest
       strategy:
         matrix:
           platform: [x64, x86]
-
+    
       steps:
         - name: Download published artifact
           uses: actions/download-artifact@v4
           with:
             name: publish-${{ matrix.platform }}
             path: ./artifacts
-
+    
         - name: Validate artifact exists
           run: |
             if (-not (Test-Path ./artifacts)) {
@@ -81,4 +81,5 @@ jobs:
               exit 1
             }
             Write-Output "Artifacts downloaded successfully."
+
 
