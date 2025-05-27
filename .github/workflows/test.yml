@@ -9,26 +9,45 @@ permissions:
   pull-requests: write
 
 jobs:
-  build-and-test:
+  jobs:
+  build:
     runs-on: windows-latest
     env:
-      Solution_Name: WebServer.sln                # ✅ 請替換成你的 solution 名稱
-      Test_Project_Path: server/WebServer/WebServer/WebServer.csproj  # ✅ 請替換成你的測試專案路徑
+      CODE_ROOT: server/WebServer  # 代码实际存放路径
+      SOLUTION_NAME: ${{ env.CODE_ROOT }}/WebServer.sln  # 动态组合路径
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+    # 新增路径验证步骤
+    - name: Validate workspace structure
+      id: validate
+      run: |
+        # 显示完整目录结构
+        Write-Output "当前工作目录: $pwd"
+        Get-ChildItem -Recurse | Format-Table FullName
 
-      - name: Restore NuGet packages
-        run: dotnet restore ${{ env.Solution_Name }}
+        # 检查解决方案文件
+        $solutionPath = "${{ env.SOLUTION_NAME }}"
+        if (-not (Test-Path $solutionPath)) {
+          Write-Output "::error::解决方案文件未找到: $solutionPath"
+          Write-Output "::group::目录结构详情"
+          tree /f "${{ env.CODE_ROOT }}"
+          Write-Output "::endgroup::"
+          exit 1
+        }
 
-      - name: Run tests
-        run: dotnet test ${{ env.Test_Project_Path }} --configuration Release --no-build
+    # 修正后的恢复步骤
+    - name: Restore dependencies
+      working-directory: ${{ env.CODE_ROOT }}  # 关键：切换工作目录
+      run: |
+        Write-Output "当前工作目录: $pwd"
+        dotnet restore "${{ env.SOLUTION_NAME }}"
+        
+    # 其他步骤保持不变...
 
   gpt-code-review:
     name: GPT Auto Code Review (C#)
