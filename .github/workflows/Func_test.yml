@@ -61,11 +61,23 @@ jobs:
           retention-days: 7
 
   deploy:
-    needs: build
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64, x86]
+  needs: build
+  runs-on: windows-latest
+  strategy:
+    matrix:
+      platform: [x64, x86]
 
-    steps:
-      - name: Download published artifact
+  steps:
+    - name: Download published artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: publish-${{ matrix.platform }}
+        path: ./artifacts
+
+    - name: Validate artifact exists
+      run: |
+        if (-not (Test-Path ./artifacts)) {
+          Write-Output "::error::Artifacts not found"
+          exit 1
+        }
+        Write-Output "Artifacts downloaded successfully."
