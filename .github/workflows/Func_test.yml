@@ -17,42 +17,10 @@ on:
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  WAP_DIR: WebServer.Package
   BUILD_CONFIG: Release
 
 jobs:
-  validate:
-    runs-on: windows-latest
-    outputs:
-      wap_exists: ${{ steps.check-wap.outputs.exists }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Validate project structure
-        id: check-wap
-        run: |
-          $solutionPath = Join-Path -Path $env:CODE_ROOT -ChildPath $env:SOLUTION_NAME
-          $wapProjectPath = Join-Path -Path $env:CODE_ROOT -ChildPath "$env:WAP_DIR\$env:WAP_DIR.wapproj"
-
-          if (-not (Test-Path $solutionPath)) {
-            Write-Output "::error::Solution file not found: $solutionPath"
-            exit 1
-          }
-
-          if (Test-Path $wapProjectPath) {
-            Write-Output "::notice::WAP project found at $wapProjectPath"
-            Write-Output "exists=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Output "::warning::WAP project missing at $wapProjectPath"
-            Write-Output "exists=false" >> $env:GITHUB_OUTPUT
-          }
-
   build:
-    needs: validate
-    if: needs.validate.outputs.wap_exists == 'true'
     runs-on: windows-latest
     strategy:
       matrix:
@@ -61,6 +29,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
@@ -72,49 +42,29 @@ jobs:
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ env.BUILD_CONFIG }}
+        run: msbuild ${{ env.SOLUTION_NAME }} /t:Restore /p:Configuration=${{ env.BUILD_CONFIG }}
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
         run: |
-          msbuild $env:SOLUTION_NAME `
+          msbuild ${{ env.SOLUTION_NAME }} `
             /p:Configuration=${{ env.BUILD_CONFIG }} `
-            /p:Platform="${{ matrix.platform }}" `
-            /p:DeployOnBuild=true `
-            /p:GenerateLibraryLayout=true
+            /p:Platform="${{ matrix.platform }}"
 
       - name: Run unit tests
         working-directory: ${{ env.CODE_ROOT }}
         run: dotnet test --configuration ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
 
-      - name: Decode signing certificate
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+      - name: Publish output (optional)
+        working-directory: ${{ env.CODE_ROOT }}
         run: |
-          [IO.File]::WriteAllBytes(
-            "GitHubActionsWorkflow.pfx",
-            [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
-          )
+          dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --self-contained false -o ./publish/${{ matrix.platform }}
 
-      - name: Build MSIX package
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
-        run: |
-          msbuild "${{ env.WAP_DIR }}.wapproj" `
-            /p:Configuration=${{ env.BUILD_CONFIG }} `
-            /p:AppxBundle=Always `
-            /p:UapAppxPackageBuildMode=StoreUpload `
-            /p:AppxBundlePlatforms="${{ matrix.platform }}" `
-            /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
-            /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
-
-      - name: Cleanup certificate
-        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
-        run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
-
-      - name: Upload artifacts
+      - name: Upload published artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: msix-package-${{ matrix.platform }}
-          path: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/AppPackages
+          name: publish-${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
           retention-days: 7
 
   deploy:
@@ -125,22 +75,14 @@ jobs:
         platform: [x64, x86]
 
     steps:
-      - name: Download artifact
+      - name: Download published artifact
         uses: actions/download-artifact@v4
         with:
-          name: msix-package-${{ matrix.platform }}
+          name: publish-${{ matrix.platform }}
           path: ./artifacts
 
-      - name: Validate package and set environment variable
-        id: find-package
-        run: |
-          $package = Get-ChildItem -Path ./artifacts -Filter *.msix -Recurse | Select-Object -First 1
-          if (-not $package) {
-            Write-Output "::error::No MSIX package found"
-            exit 1
-          }
-          echo "Package found at: $($package.FullName)"
-          echo "PACKAGE_PATH=$($package.FullName)" >> $env:GITHUB_ENV
+      - name: List downloaded files
+        run: dir ./artifacts
 
-      - name: Use MSIX package path
-        run: echo "MSIX path is: $env:PACKAGE_PATH"
+      - name: Deploy or further steps here
+        run: echo "Deploying for platform ${{ matrix.platform }}"
