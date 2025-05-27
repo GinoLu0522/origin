@@ -9,33 +9,14 @@ on:
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  WAP_DIR: WebServer.Package  # 必须与实际目录名完全一致
+  WAP_DIR: WebServer.Package  # 必須與實際目錄名一致
 
 jobs:
-  validate:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-      
-    - name: Validate Paths
-      run: |
-        $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-        Write-Output "##[group]路径验证信息"
-        Write-Output "解决方案路径: $solutionPath"
-        Write-Output "##[endgroup]"
-
-        if (-not (Test-Path $solutionPath)) {
-            Write-Output "::error::Missing solution file"
-            exit 1
-        }
-      shell: pwsh
-
   build:
-    needs: validate
     strategy:
       matrix:
         configuration: [Release]
-        platform: [x64, x86]
+        platform: ["Any CPU"]  # 修正錯誤組態
 
     runs-on: windows-latest
 
@@ -72,6 +53,7 @@ jobs:
             "GitHubActionsWorkflow.pfx",
             [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
           )
+        shell: pwsh
 
       - name: Build MSIX package
         working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
@@ -83,10 +65,12 @@ jobs:
             /p:AppxBundlePlatforms="${{ matrix.platform }}" `
             /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
             /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
+        shell: pwsh
 
       - name: Cleanup certificate
         working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
         run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
+        shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
