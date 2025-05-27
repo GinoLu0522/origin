@@ -14,6 +14,12 @@ env:
 jobs:
   validate:
     runs-on: windows-latest
+
+    strategy:
+      matrix:
+        configuration: [Release]
+        platform: [x64]
+
     steps:
       - uses: actions/checkout@v4
 
