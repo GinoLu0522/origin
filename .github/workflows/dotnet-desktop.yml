@@ -2,18 +2,24 @@ name: .NET Core Desktop CI/CD
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  WAP_DIR: WebServer.Package  # 必须与实际目录名完全一致
+  WAP_DIR: WebServer.Package
 
 jobs:
   validate:
     runs-on: windows-latest
+
+    strategy:
+      matrix:
+        configuration: [Release]
+        platform: [x64]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,9 +49,6 @@ jobs:
               exit 1
           }
         shell: pwsh
-
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
