@@ -32,35 +32,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 8.x
+      - name: Setup .NET 8.x SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild ${{ env.SOLUTION_NAME }} /t:Restore /p:Configuration=${{ env.BUILD_CONFIG }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }}
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          msbuild ${{ env.SOLUTION_NAME }} `
-            /p:Configuration=${{ env.BUILD_CONFIG }} `
-            /p:Platform="${{ matrix.platform }}"
+        run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-restore --no-self-contained
 
-      - name: Run unit tests
+      - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet test --configuration ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
+        run: dotnet test ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
 
-      - name: Publish output (optional)
+      - name: Publish app
         working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --self-contained false -o ./publish/${{ matrix.platform }}
+        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
 
-      - name: Upload published artifacts
+      - name: Upload publish artifact
         uses: actions/upload-artifact@v4
         with:
           name: publish-${{ matrix.platform }}
@@ -76,13 +69,3 @@ jobs:
 
     steps:
       - name: Download published artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: publish-${{ matrix.platform }}
-          path: ./artifacts
-
-      - name: List downloaded files
-        run: dir ./artifacts
-
-      - name: Deploy or further steps here
-        run: echo "Deploying for platform ${{ matrix.platform }}"
