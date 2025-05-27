@@ -43,7 +43,7 @@ jobs:
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-restore --no-self-contained
+        run: dotnet build WebServer/WebServer.csproj -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-restore --no-self-contained
 
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Publish app
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
+        run: dotnet publish WebServer/WebServer.csproj -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
 
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4
