@@ -50,7 +50,75 @@ jobs:
             Write-Output "exists=false" >> $env:GITHUB_OUTPUT
           }
 
+  build:
+    needs: validate
+    if: needs.validate.outputs.wap_exists == 'true'
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64, x86]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore dependencies
+        working-directory: ${{ env.CODE_ROOT }}
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ env.BUILD_CONFIG }}
+
+      - name: Build solution
+        working-directory: ${{ env.CODE_ROOT }}
+        run: |
+          msbuild $env:SOLUTION_NAME `
+            /p:Configuration=${{ env.BUILD_CONFIG }} `
+            /p:Platform="${{ matrix.platform }}" `
+            /p:DeployOnBuild=true `
+            /p:GenerateLibraryLayout=true
+
+      - name: Run unit tests
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet test --configuration ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
+
+      - name: Decode signing certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          [IO.File]::WriteAllBytes(
+            "GitHubActionsWorkflow.pfx",
+            [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
+          )
+
+      - name: Build MSIX package
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: |
+          msbuild "${{ env.WAP_DIR }}.wapproj" `
+            /p:Configuration=${{ env.BUILD_CONFIG }} `
+            /p:AppxBundle=Always `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:AppxBundlePlatforms="${{ matrix.platform }}" `
+            /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
+            /p:PackageCertificatePassword="${{ secrets.Pfx_Key }}"
+
+      - name: Cleanup certificate
+        working-directory: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}
+        run: Remove-Item -Path GitHubActionsWorkflow.pfx -Force
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-package-${{ matrix.platform }}
+          path: ${{ env.CODE_ROOT }}/${{ env.WAP_DIR }}/AppPackages
+          retention-days: 7
+
   deploy:
+    needs: build
     runs-on: windows-latest
     strategy:
       matrix:
