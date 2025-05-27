@@ -1,114 +1,62 @@
-name: .NET + GPT Code Review
+name: .NET Core Desktop CI/CD
 
 on:
+  push:
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
-permissions:
-  contents: read
-  pull-requests: write
+env:
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
 
 jobs:
-  jobs:
   build:
     runs-on: windows-latest
-    env:
-      CODE_ROOT: server/WebServer  # 代码实际存放路径
-      SOLUTION_NAME: ${{ env.CODE_ROOT }}/WebServer.sln  # 动态组合路径
+
+    strategy:
+      matrix:
+        configuration: [Release]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
 
-    # 新增路径验证步骤
-    - name: Validate workspace structure
-      id: validate
-      run: |
-        # 显示完整目录结构
-        Write-Output "当前工作目录: $pwd"
-        Get-ChildItem -Recurse | Format-Table FullName
+      - name: Debug - List CODE_ROOT directory
+        run: Get-ChildItem -Recurse
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
 
-        # 检查解决方案文件
-        $solutionPath = "${{ env.SOLUTION_NAME }}"
-        if (-not (Test-Path $solutionPath)) {
-          Write-Output "::error::解决方案文件未找到: $solutionPath"
-          Write-Output "::group::目录结构详情"
-          tree /f "${{ env.CODE_ROOT }}"
-          Write-Output "::endgroup::"
-          exit 1
-        }
+      - name: Validate solution file exists
+        run: |
+          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
+          if (-not (Test-Path $solutionPath)) {
+              Write-Output "::error::Missing solution file"
+              exit 1
+          }
+        shell: pwsh
 
-    # 修正后的恢复步骤
-    - name: Restore dependencies
-      working-directory: ${{ env.CODE_ROOT }}  # 关键：切换工作目录
-      run: |
-        Write-Output "当前工作目录: $pwd"
-        dotnet restore "${{ env.SOLUTION_NAME }}"
-        
-    # 其他步骤保持不变...
-
-  gpt-code-review:
-    name: GPT Auto Code Review (C#)
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.event_name == 'pull_request'
-
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
         with:
-          fetch-depth: 0
+          dotnet-version: 8.0.x
 
-      - name: Get changed C# files diff
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.cs' > cs.diff || true
-          if [ ! -s cs.diff ]; then
-            echo "✅ No C# code changes detected." > review.txt
-            echo "approve" > decision.txt
-            exit 0
-          fi
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-      - name: Call OpenAI for code review
-        id: gpt_review
-        run: |
-          prompt="你是資深 C# 工程師，請針對以下程式碼變更提供具體建議（若無問題請回覆 approve）：\n\n$(cat cs.diff)"
-          response=$(curl -s https://api.openai.com/v1/chat/completions \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "model": "gpt-4o",
-              "messages": [
-                {"role": "system", "content": "你是資深 C# 工程師"},
-                {"role": "user", "content": "'"$prompt"'"}
-              ],
-              "temperature": 0.3
-            }' | jq -r '.choices[0].message.content')
-          echo "$response" > review.txt
-          echo "$response"
-          if echo "$response" | grep -iq "request-changes"; then
-            echo "request-changes" > decision.txt
-          else
-            echo "approve" > decision.txt
-          fi
+      - name: Restore dependencies
+        working-directory: ${{ env.CODE_ROOT }}
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
-      - name: Submit GPT review to PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO=${{ github.repository }}
-          decision=$(cat decision.txt)
-          if [[ "$decision" == "approve" ]]; then
-            gh pr review "$PR_NUMBER" --repo "$REPO" --approve --body-file review.txt
-          elif [[ "$decision" == "request-changes" ]]; then
-            gh pr review "$PR_NUMBER" --repo "$REPO" --request-changes --body-file review.txt
-          else
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file review.txt
-          fi
+      - name: Build solution
+        working-directory: ${{ env.CODE_ROOT }}
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
+
+      - name: Run tests
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
+
+      - name: Upload build artifacts (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_output
+          path: ${{ env.CODE_ROOT }}/bin
