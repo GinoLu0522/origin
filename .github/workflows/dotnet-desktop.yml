@@ -108,32 +108,34 @@ jobs:
         shell: pwsh
 
       - name: Code Review - Detect bad comments
+        shell: pwsh
         run: |
           echo "### 🧠 Code Review (Suspicious Comments)" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-
+      
           $pattern = '^\s*//\s*\d{3,}\s*$'
-
+      
           $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
-
+      
           $hasIssues = $false
-
+      
           foreach ($file in $changedFiles) {
             if (Test-Path $file) {
               $lines = Get-Content $file
               for ($i = 0; $i -lt $lines.Count; $i++) {
                 $line = $lines[$i]
                 if ($line -match $pattern) {
-                  echo "$file:`$($i+1)` => '$line'" >> $env:GITHUB_STEP_SUMMARY
+                  $output = "${file}:$($i+1) => '$line'"
+                  echo $output >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
               }
             }
           }
-
+      
           if (-not $hasIssues) {
             echo "✅ No suspicious comment-only numbers found." >> $env:GITHUB_STEP_SUMMARY
           }
-
+      
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-        shell: pwsh
+          shell: pwsh
