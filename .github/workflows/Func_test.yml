@@ -21,10 +21,14 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64, x86]
+    run: |
+      dotnet build WebServer.sln `
+      -c Release `
+      -r win-x64 `
+      --no-restore `
+      --no-self-contained `
+      /p:Version=1.0.11
+
 
     steps:
       - name: Checkout code
