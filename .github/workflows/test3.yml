@@ -3,20 +3,17 @@ name: .NET Core Desktop CI/CD
 on:
   workflow_dispatch:
   push:
-    branches:
-      - master
-      - main
+    branches: [master, main]
     paths:
       - 'server/WebServer/**'
   pull_request:
-    branches:
-      - master
+    branches: [master]
     paths:
       - 'server/WebServer/**'
 
 env:
   CODE_ROOT: server/WebServer
-  SOLUTION_NAME: WebServer.sln
+  PROJECT_FILE: WebServer/WebServer.csproj
   BUILD_CONFIG: Release
 
 jobs:
@@ -29,8 +26,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup .NET 8.x SDK
         uses: actions/setup-dotnet@v4
@@ -39,21 +34,25 @@ jobs:
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet restore ${{ env.SOLUTION_NAME }}
+        run: dotnet restore ${{ env.PROJECT_FILE }}
 
-      - name: Build solution
+      - name: Build project
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-restore
-
-
+        run: dotnet build ${{ env.PROJECT_FILE }} -c ${{ env.BUILD_CONFIG }} --no-restore
 
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet test ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
+        run: dotnet test ${{ env.PROJECT_FILE }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
 
       - name: Publish app
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
+        run: |
+          dotnet publish ${{ env.PROJECT_FILE }} `
+            -c ${{ env.BUILD_CONFIG }} `
+            -r win-${{ matrix.platform }} `
+            --output ./publish/${{ matrix.platform }} `
+            --self-contained false `
+            --no-build
 
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4
@@ -78,7 +77,7 @@ jobs:
 
       - name: Validate artifact exists
         run: |
-          if (-not (Test-Path ./artifacts)) {
+          if (-not (Test-Path "./artifacts")) {
             Write-Output "::error::Artifacts not found"
             exit 1
           }
