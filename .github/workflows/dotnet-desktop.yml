@@ -3,6 +3,8 @@ name: .NET Core Desktop CI/CD + Code Review
 on:
   pull_request:
     branches: ["master"]
+  push:
+    branches: ["master"]
 
 env:
   CODE_ROOT: server/WebServer
