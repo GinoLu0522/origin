@@ -1,69 +1,92 @@
-name: Automated Code Review with GPT
+name: .NET Core Desktop CI/CD
 
 on:
+  push:
+    branches: ["master"]
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: ["master"]
+
+env:
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
 
 jobs:
-  code_review:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        configuration: [Release]
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Debug - List CODE_ROOT directory
+        run: Get-ChildItem -Recurse
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
+
+      - name: Validate solution file exists
+        run: |
+          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
+          if (-not (Test-Path $solutionPath)) {
+              Write-Output "::error::Missing solution file"
+              exit 1
+          }
+        shell: pwsh
+
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
         with:
-          fetch-depth: 0  # 需要完整 commit 歷史拿差異
+          dotnet-version: 8.0.x
 
-      - name: Get changed files
-        id: files
-        run: |
-          echo "::group::Get changed files"
-          files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} ${{ github.sha }})
-          echo "Changed files:"
-          echo "$files"
-          echo "::endgroup::"
-          echo "::set-output name=changed_files::$files"
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
-      - name: Get diff content
-        id: diff
-        run: |
-          echo "::group::Get diff content"
-          diff_content=$(git diff origin/${{ github.event.pull_request.base.ref }} ${{ github.sha }})
-          echo "$diff_content"
-          echo "::endgroup::"
-          # 輸出為 step outputs，方便後續用
-          echo "::set-output name=diff::$diff_content"
+      - name: Restore dependencies
+        working-directory: ${{ env.CODE_ROOT }}
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
-      - name: Call OpenAI for Code Review
-        id: gpt_review
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          prompt="請幫我review以下的程式碼差異，指出潛在問題與優化建議:\n\n${{ steps.diff.outputs.diff }}"
+      - name: Build solution
+        working-directory: ${{ env.CODE_ROOT }}
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
 
-          response=$(curl -s https://api.openai.com/v1/chat/completions \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -d '{
-              "model": "gpt-4o-mini",
-              "messages": [{"role": "user", "content": "'"$prompt"'"}],
-              "max_tokens": 600
-            }')
+      - name: Run tests
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
 
-          echo "GPT review response:"
-          echo "$response"
+      - name: Publish project
+        working-directory: ${{ env.CODE_ROOT }}
+        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ matrix.configuration }} -r win-x64 --self-contained false --output ./publish/x64
 
-          # 擷取回覆內容
-          review_text=$(echo "$response" | jq -r '.choices[0].message.content')
-          echo "Review Text:"
-          echo "$review_text"
-          echo "::set-output name=review::$review_text"
-
-      - name: Post review comment to PR
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            ## 🤖 AI Code Review 建議
+          name: publish-x64
+          path: ${{ env.CODE_ROOT }}/publish/x64
 
-            ${{ steps.gpt_review.outputs.review }}
+  deploy:
+    needs: build
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64]
+
+    steps:
+      - name: Download published artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-${{ matrix.platform }}
+          path: ./artifacts
+
+      - name: Validate artifact exists
+        run: |
+          if (-not (Test-Path ./artifacts)) {
+            Write-Output "::error::Artifacts not found"
+            exit 1
+          }
+          Write-Output "Artifacts downloaded successfully."
+        shell: pwsh
+
+      - name: List downloaded artifact files
+        run: Get-ChildItem -Path ./artifacts -Recurse
+        shell: pwsh
