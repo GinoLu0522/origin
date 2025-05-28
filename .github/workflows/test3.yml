@@ -20,17 +20,26 @@ env:
   BUILD_CONFIG: Release
 
 jobs:
-  build:
+  build-x64:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64, x86]
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      # ...相同內容
+      - name: Publish x64
+        run: dotnet publish ... -r win-x64 ...
+
+  build-x86:
+    runs-on: windows-latest
+    steps:
+      # ...相同內容
+      - name: Publish x86
+        run: dotnet publish ... -r win-x86 ...
+
+
+    #steps:
+    #  - name: Checkout code
+    #    uses: actions/checkout@v4
+    #    with:
+    #      fetch-depth: 0
 
       - name: Setup .NET 8.x SDK
         uses: actions/setup-dotnet@v4
