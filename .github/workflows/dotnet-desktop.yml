@@ -13,6 +13,10 @@ jobs:
     runs-on: windows-latest
     name: Build and Review
 
+    if: |
+      github.event.action == 'opened' || 
+      github.event.action == 'synchronize'
+
     steps:
       - uses: actions/checkout@v4
 
