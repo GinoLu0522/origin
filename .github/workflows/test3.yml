@@ -55,9 +55,12 @@ jobs:
         working-directory: ${{ env.CODE_ROOT }}
         run: dotnet test --configuration ${{ matrix.configuration }} --no-build
 
-      - name: Upload build artifacts (optional)
+      - name: Upload publish artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build_output
+          name: publish-${{ matrix.platform }}
           path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
+          if-no-files-found: warn
+          compression-level: 6
+
 
