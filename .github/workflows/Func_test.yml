@@ -67,14 +67,14 @@ jobs:
       strategy:
         matrix:
           platform: [x64]
-  
+
       steps:
         - name: Download published artifact
           uses: actions/download-artifact@v4
           with:
             name: publish-${{ matrix.platform }}
             path: ./artifacts
-  
+
         - name: Validate artifact exists
           run: |
             if (-not (Test-Path ./artifacts)) {
@@ -82,4 +82,8 @@ jobs:
               exit 1
             }
             Write-Output "Artifacts downloaded successfully."
+          shell: pwsh
 
+        - name: List downloaded artifact files
+          run: Get-ChildItem -Path ./artifacts -Recurse
+          shell: pwsh
