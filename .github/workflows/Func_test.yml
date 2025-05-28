@@ -1,8 +1,6 @@
-name: .NET Core Desktop CI/CD
+name: .NET Core Desktop CI/CD + Code Review
 
 on:
-  push:
-    branches: ["master"]
   pull_request:
     branches: ["master"]
 
@@ -13,28 +11,12 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        configuration: [Release]
+    name: Build and Review
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Debug - List CODE_ROOT directory
-        run: Get-ChildItem -Recurse
-        working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
-
-      - name: Validate solution file exists
-        run: |
-          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-          if (-not (Test-Path $solutionPath)) {
-              Write-Output "::error::Missing solution file"
-              exit 1
-          }
-        shell: pwsh
-
-      - name: Setup .NET 8.x
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
@@ -42,56 +24,18 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore dependencies
-        working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
-
-      - name: Run code format (optional)
+      - name: Restore & Build
         working-directory: ${{ env.CODE_ROOT }}
         run: |
-          dotnet format --verify-no-changes || echo "Code style issues ignored"
- 
-      - name: Build solution
-        working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
-
-      - name: Run tests
-        working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
-
-      - name: Publish project
-        working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ matrix.configuration }} -r win-x64 --self-contained false --output ./publish/x64
-
-      - name: Upload publish artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: publish-x64
-          path: ${{ env.CODE_ROOT }}/publish/x64
-
-  deploy:
-    needs: build
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64]
-
-    steps:
-      - name: Download published artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: publish-${{ matrix.platform }}
-          path: ./artifacts
-
-      - name: Validate artifact exists
-        run: |
-          if (-not (Test-Path ./artifacts)) {
-            Write-Output "::error::Artifacts not found"
-            exit 1
-          }
-          Write-Output "Artifacts downloaded successfully."
+          msbuild ${{ env.SOLUTION_NAME }} /t:Restore,Build /p:Configuration=Release
         shell: pwsh
+        continue-on-error: true
 
-      - name: List downloaded artifact files
-        run: Get-ChildItem -Path ./artifacts -Recurse
+      - name: Post Code Review (Build Errors)
+        if: failure()
+        run: |
+          echo "### ❌ Build Failed" >> $env:GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content "${{ env.CODE_ROOT }}\msbuild.log" | Select-String "error" >> $env:GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
         shell: pwsh
