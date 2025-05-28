@@ -59,4 +59,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build_output
-          path: ${{ env.CODE_ROOT }}/bin
+          path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
+
