@@ -72,7 +72,7 @@ jobs:
         - name: Download published artifact
           uses: actions/download-artifact@v4
           with:
-            name: publish-${{ matrix.platform }}
+            name: publish-x64
             path: ./artifacts
 
         - name: Validate artifact exists
