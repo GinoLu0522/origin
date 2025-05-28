@@ -1,71 +1,75 @@
 name: .NET Core Desktop CI/CD
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
-      - main
-    paths:
-      - 'server/WebServer/**'
+    branches: ["master"]
   pull_request:
-    branches:
-      - master
-    paths:
-      - 'server/WebServer/**'
+    branches: ["master"]
 
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  BUILD_CONFIG: Release
 
 jobs:
   build:
     runs-on: windows-latest
     strategy:
       matrix:
-        platform: [x64, x86]
+        configuration: [Release]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Setup .NET 8.x SDK
+      - name: Debug - List CODE_ROOT directory
+        run: Get-ChildItem -Recurse
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
+
+      - name: Validate solution file exists
+        run: |
+          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
+          if (-not (Test-Path $solutionPath)) {
+              Write-Output "::error::Missing solution file"
+              exit 1
+          }
+        shell: pwsh
+
+      - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet restore ${{ env.SOLUTION_NAME }}
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet build ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-restore --no-self-contained
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
 
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet test ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} --no-build --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx"
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
 
-      - name: Publish app
+      - name: Publish project
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ env.BUILD_CONFIG }} -r win-${{ matrix.platform }} --no-build --output ./publish/${{ matrix.platform }} --self-contained false
+        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ matrix.configuration }} -r win-x64 --self-contained false --output ./publish/x64
 
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4
         with:
-          name: publish-${{ matrix.platform }}
-          path: ${{ env.CODE_ROOT }}/publish/${{ matrix.platform }}
-          retention-days: 7
+          name: publish-x64
+          path: ${{ env.CODE_ROOT }}/publish/x64
 
   deploy:
     needs: build
     runs-on: windows-latest
     strategy:
       matrix:
-        platform: [x64, x86]
+        platform: [x64]
 
     steps:
       - name: Download published artifact
@@ -81,3 +85,8 @@ jobs:
             exit 1
           }
           Write-Output "Artifacts downloaded successfully."
+        shell: pwsh
+
+      - name: List downloaded artifact files
+        run: Get-ChildItem -Path ./artifacts -Recurse
+        shell: pwsh
