@@ -46,6 +46,14 @@ jobs:
         working-directory: ${{ env.CODE_ROOT }}
         run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
+      # **自動 Code Review：安裝 dotnet format**
+      - name: Install dotnet format tool
+        run: dotnet tool install -g dotnet-format
+
+      # **自動 Code Review：格式檢查**
+      - name: Run dotnet format check
+        run: dotnet format --verify-no-changes --folder ${{ env.CODE_ROOT }}
+
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
         run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
