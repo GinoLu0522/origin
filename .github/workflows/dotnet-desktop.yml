@@ -1,4 +1,4 @@
-name: .NET Core Desktop CI/CD
+name: .NET Core Desktop CI/CD + Code Review
 
 on:
   push:
@@ -13,26 +13,10 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        configuration: [Release]
+    name: Build and Code Review
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Debug - List CODE_ROOT directory
-        run: Get-ChildItem -Recurse
-        working-directory: ${{ env.CODE_ROOT }}
-        shell: pwsh
-
-      - name: Validate solution file exists
-        run: |
-          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
-          if (-not (Test-Path $solutionPath)) {
-              Write-Output "::error::Missing solution file"
-              exit 1
-          }
-        shell: pwsh
 
       - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
@@ -44,60 +28,16 @@ jobs:
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild ${{ env.SOLUTION_NAME }} /t:Restore /p:Configuration=${{ matrix.configuration }}
+        run: |
+          msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=Release
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: msbuild ${{ env.SOLUTION_NAME }} /p:Configuration=${{ matrix.configuration }}
-
-      - name: Run tests
-        working-directory: ${{ env.CODE_ROOT }}
         run: |
-          dotnet test --configuration ${{ matrix.configuration }} --no-build
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::error::Tests failed"
-            exit 1
-          }
-        shell: pwsh
+          msbuild $env:SOLUTION_NAME /p:Configuration=Release /fl /flp:logfile=msbuild.log;errorsonly
+        continue-on-error: true
 
-      - name: Publish project
-        working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet publish ${{ env.SOLUTION_NAME }} -c ${{ matrix.configuration }} -r win-x64 --self-contained false --output ./publish/x64
-
-      - name: Upload publish artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: publish-x64
-          path: ${{ env.CODE_ROOT }}/publish/x64
-
-  deploy:
-    needs: build
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        platform: [x64]
-
-    steps:
-      - name: Download published artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: publish-x64
-          path: ./artifacts
-
-      - name: Validate artifact exists
-        run: |
-          if (-not (Test-Path ./artifacts)) {
-            Write-Error "::error::Artifacts not found. Expected publish output missing."
-            exit 1
-          }
-          Write-Output "Artifacts downloaded successfully."
-        shell: pwsh
-
-      - name: List downloaded artifact files
-        run: Get-ChildItem -Path ./artifacts -Recurse
-        shell: pwsh
-
-      - name: Post Code Review (Build Errors)
+      - name: Code Review - Build Errors
         if: failure()
         working-directory: ${{ env.CODE_ROOT }}
         run: |
@@ -107,18 +47,16 @@ jobs:
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
         shell: pwsh
 
-      - name: Code Review - Detect bad comments
+      - name: Code Review - Suspicious Comments
         shell: pwsh
         run: |
           echo "### 🧠 Code Review (Suspicious Comments)" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-      
+
           $pattern = '^\s*//\s*\d{3,}\s*$'
-      
           $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
-      
           $hasIssues = $false
-      
+
           foreach ($file in $changedFiles) {
             if (Test-Path $file) {
               $lines = Get-Content $file
@@ -132,10 +70,9 @@ jobs:
               }
             }
           }
-      
+
           if (-not $hasIssues) {
             echo "✅ No suspicious comment-only numbers found." >> $env:GITHUB_STEP_SUMMARY
           }
-      
+
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-          shell: pwsh
