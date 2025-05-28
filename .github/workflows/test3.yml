@@ -1,148 +1,62 @@
 name: .NET Core Desktop CI/CD
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
-      - main
-    paths:
-      - 'server/WebServer/**'
+    branches: ["master"]
   pull_request:
-    branches:
-      - master
-    paths:
-      - 'server/WebServer/**'
+    branches: ["master"]
 
 env:
   CODE_ROOT: server/WebServer
   SOLUTION_NAME: WebServer.sln
-  BUILD_CONFIG: Release
-  DOTNET_VERSION: '8.0.x'  # 集中管理 .NET 版本
 
 jobs:
   build:
     runs-on: windows-latest
+
     strategy:
       matrix:
-        platform: [x64, x86]
-      fail-fast: false  # 允許各平台獨立失敗
+        configuration: [Release]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Setup .NET SDK
+      - name: Debug - List CODE_ROOT directory
+        run: Get-ChildItem -Recurse
+        working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
+
+      - name: Validate solution file exists
+        run: |
+          $solutionPath = "${{ env.CODE_ROOT }}/${{ env.SOLUTION_NAME }}"
+          if (-not (Test-Path $solutionPath)) {
+              Write-Output "::error::Missing solution file"
+              exit 1
+          }
+        shell: pwsh
+
+      - name: Setup .NET 8.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: 8.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.nuget/packages
-            ${{ env.CODE_ROOT }}/**/bin
-            ${{ env.CODE_ROOT }}/**/obj
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: dotnet restore ${{ env.SOLUTION_NAME }} --verbosity normal
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=${{ matrix.configuration }}
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          dotnet build ${{ env.SOLUTION_NAME }} \
-            -c ${{ env.BUILD_CONFIG }} \
-            -r win-${{ matrix.platform }} \
-            --no-restore \
-            --no-self-contained \
-            /p:Version=1.0.${{ github.run_number }}  # 自動注入版本號
+        run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
 
       - name: Run tests
         working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          dotnet test ${{ env.SOLUTION_NAME }} \
-            -c ${{ env.BUILD_CONFIG }} \
-            --no-build \
-            --logger "trx;LogFileName=TestResults-${{ matrix.platform }}.trx" \
-            --results-directory ./TestResults/
+        run: dotnet test --configuration ${{ matrix.configuration }} --no-build
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()  # 即使測試失敗也上傳結果
-        with:
-          name: test-results-${{ matrix.platform }}
-          path: ${{ env.CODE_ROOT }}/TestResults/**/*.trx
-
-      - name: Publish application
-        working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          dotnet publish ${{ env.SOLUTION_NAME }} \
-            -c ${{ env.BUILD_CONFIG }} \
-            -r win-${{ matrix.platform }} \
-            --no-build \
-            --output ./publish/win-${{ matrix.platform }} \
-            --self-contained false \
-            /p:DebugType=None \
-            /p:DebugSymbols=false
-
-      - name: Create deployment package
-        working-directory: ${{ env.CODE_ROOT }}/publish/win-${{ matrix.platform }}
-        run: |
-          Compress-Archive -Path * -DestinationPath ../deploy-${{ matrix.platform }}.zip -Force
-
-      - name: Upload artifacts
+      - name: Upload build artifacts (optional)
         uses: actions/upload-artifact@v4
         with:
-          name: deploy-packages
-          path: |
-            ${{ env.CODE_ROOT }}/publish/deploy-*.zip
-            ${{ env.CODE_ROOT }}/publish/win-*/
-          retention-days: 7
-
-  deploy:
-    needs: build
-    runs-on: windows-latest
-    environment: production  # 需要配置環境保護規則
-    strategy:
-      matrix:
-        platform: [x64, x86]
-
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: deploy-packages
-          path: ./artifacts
-
-      - name: Validate artifacts
-        run: |
-          $artifactPath = "./artifacts/win-${{ matrix.platform }}"
-          if (-not (Test-Path $artifactPath)) {
-            Write-Error "Artifact for ${{ matrix.platform }} not found"
-            exit 1
-          }
-          Write-Output "Artifact validation passed for ${{ matrix.platform }}"
-
-      - name: Deploy to staging
-        run: |
-          # 這裡添加實際部署邏輯，例如：
-          # 1. 停止現有服務
-          # 2. 備份當前版本
-          # 3. 解壓縮部署包
-          # 4. 啟動服務
-          # 範例指令：
-          Expand-Archive -Path ./artifacts/deploy-${{ matrix.platform }}.zip -DestinationPath "C:\AppDeploy\${{ matrix.platform }}" -Force
-          
-      - name: Post-deployment verification
-        run: |
-          # 添加驗證步驟，例如：
-          # 檢查服務是否運行
-          # 發送測試請求
-          # 驗證版本號
+          name: build_output
+          path: ${{ env.CODE_ROOT }}/bin
