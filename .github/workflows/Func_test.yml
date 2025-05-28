@@ -49,7 +49,7 @@ jobs:
       - name: Run code format check
         working-directory: ${{ env.CODE_ROOT }}
         run: dotnet format --verify-no-changes
-
+      
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
         run: msbuild $env:SOLUTION_NAME /p:Configuration=${{ matrix.configuration }}
