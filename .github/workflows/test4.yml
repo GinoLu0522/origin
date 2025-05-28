@@ -1,0 +1,41 @@
+name: .NET Core Desktop CI/CD + Code Review
+
+on:
+  pull_request:
+    branches: ["master"]
+
+env:
+  CODE_ROOT: server/WebServer
+  SOLUTION_NAME: WebServer.sln
+
+jobs:
+  build:
+    runs-on: windows-latest
+    name: Build and Review
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore & Build
+        working-directory: ${{ env.CODE_ROOT }}
+        run: |
+          msbuild ${{ env.SOLUTION_NAME }} /t:Restore,Build /p:Configuration=Release
+        shell: pwsh
+        continue-on-error: true
+
+      - name: Post Code Review (Build Errors)
+        if: failure()
+        run: |
+          echo "### ❌ Build Failed" >> $env:GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content "${{ env.CODE_ROOT }}\msbuild.log" | Select-String "error" >> $env:GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+        shell: pwsh
