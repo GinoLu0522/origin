@@ -39,3 +39,4 @@ jobs:
           Get-Content "${{ env.CODE_ROOT }}\msbuild.log" | Select-String "error" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
         shell: pwsh
+
