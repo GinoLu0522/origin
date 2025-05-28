@@ -27,15 +27,16 @@ jobs:
       - name: Restore & Build
         working-directory: ${{ env.CODE_ROOT }}
         run: |
-          msbuild ${{ env.SOLUTION_NAME }} /t:Restore,Build /p:Configuration=Release
+          msbuild ${{ env.SOLUTION_NAME }} /t:Restore,Build /p:Configuration=Release /fl /flp:logfile=msbuild.log;errorsonly
         shell: pwsh
         continue-on-error: true
 
       - name: Post Code Review (Build Errors)
         if: failure()
+        working-directory: ${{ env.CODE_ROOT }}
         run: |
           echo "### ❌ Build Failed" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-          Get-Content "${{ env.CODE_ROOT }}\msbuild.log" | Select-String "error" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content msbuild.log >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
         shell: pwsh
