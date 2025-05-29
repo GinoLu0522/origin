@@ -46,7 +46,7 @@ jobs:
           Get-Content msbuild.log >> $env:GITHUB_STEP_SUMMARY
           echo "```" >> $env:GITHUB_STEP_SUMMARY
 
-            - name: Code Review - Static Checks
+      - name: Code Review - Static Checks
         shell: pwsh
         working-directory: ${{ env.CODE_ROOT }}
         run: |
