@@ -47,13 +47,12 @@ jobs:
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
         shell: pwsh
 
-      - name: Code Review - Suspicious Comments
+      - name: Code Review - Static Checks
         shell: pwsh
         run: |
-          echo "### 🧠 Code Review (Suspicious or Empty Comments)" >> $env:GITHUB_STEP_SUMMARY
+          echo "### 🧠 Code Review - Static Analysis" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
 
-          $pattern = '^\s*//\s*$'  # 僅有 // 或 // 加空格
           $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
           $hasIssues = $false
 
@@ -62,9 +61,40 @@ jobs:
               $lines = Get-Content $file
               for ($i = 0; $i -lt $lines.Count; $i++) {
                 $line = $lines[$i]
-                if ($line -match $pattern) {
-                  $output = "${file}:$($i+1) => '$line'"
-                  echo $output >> $env:GITHUB_STEP_SUMMARY
+                $lineno = $i + 1
+
+                if ($line -match '^\s*//\s*$') {
+                  echo "$file:$lineno => ❗ 空註解行" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($line -match '^\s*//\s*\d{3,}\s*$') {
+                  echo "$file:$lineno => ❗ 只有數字的註解" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($line -match 'Console\.WriteLine') {
+                  echo "$file:$lineno => ❗ Console.WriteLine 應移除" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($line -match 'TODO|FIXME') {
+                  echo "$file:$lineno => ❗ 包含 TODO 或 FIXME" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($line -match '\s+$') {
+                  echo "$file:$lineno => ❗ 行尾空白" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($line.Length -gt 120) {
+                  echo "$file:$lineno => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($i -gt 1 -and $lines[$i-1] -eq '' -and $lines[$i-2] -eq '' -and $line -eq '') {
+                  echo "$file:$lineno => ❗ 三個以上連續空行" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
               }
@@ -72,8 +102,7 @@ jobs:
           }
 
           if (-not $hasIssues) {
-            echo "✅ No empty or whitespace-only comment lines found." >> $env:GITHUB_STEP_SUMMARY
+            echo "✅ No suspicious patterns found." >> $env:GITHUB_STEP_SUMMARY
           }
 
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-
