@@ -51,58 +51,65 @@ jobs:
         shell: pwsh
         run: |
           echo "### 🧠 Code Review - Static Analysis" >> $env:GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-
+          echo '```' >> $env:GITHUB_STEP_SUMMARY
+          
+          $patternEmptyComment = '^\s*//\s*$'
+          $patternNumberOnlyComment = '^\s*//\s*\d{3,}\s*$'
+          $patternConsoleWriteLine = 'Console\.WriteLine'
+          $patternTodoFixme = 'TODO|FIXME'
+          $patternTrailingWhitespace = '\s+$'
+          
           $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
           $hasIssues = $false
-
+          
           foreach ($file in $changedFiles) {
             if (Test-Path $file) {
               $lines = Get-Content $file
               for ($i = 0; $i -lt $lines.Count; $i++) {
                 $line = $lines[$i]
                 $lineno = $i + 1
-
-                if ($line -match '^\s*//\s*$') {
+          
+                if ($line -match $patternEmptyComment) {
                   echo "${file}:${lineno} => ❗ 空註解行" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
-                if ($line -match '^\s*//\s*\d{3,}\s*$') {
+          
+                if ($line -match $patternNumberOnlyComment) {
                   echo "${file}:${lineno} => ❗ 只有數字的註解" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
-                if ($line -match 'Console\.WriteLine') {
+          
+                if ($line -match $patternConsoleWriteLine) {
                   echo "${file}:${lineno} => ❗ Console.WriteLine 應移除" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
-                if ($line -match 'TODO|FIXME') {
+          
+                if ($line -match $patternTodoFixme) {
                   echo "${file}:${lineno} => ❗ 包含 TODO 或 FIXME" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
-                if ($line -match '\s+$') {
+          
+                if ($line -match $patternTrailingWhitespace) {
                   echo "${file}:${lineno} => ❗ 行尾空白" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
+          
                 if ($line.Length -gt 120) {
                   echo "${file}:${lineno} => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
-
-                if ($i -gt 1 -and $lines[$i-1] -eq '' -and $lines[$i-2] -eq '' -and $line -eq '') {
+          
+                if ($i -gt 1 -and $lines[$i] -eq '' -and $lines[$i-1] -eq '' -and $lines[$i-2] -eq '') {
                   echo "${file}:${lineno} => ❗ 三個以上連續空行" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
               }
             }
           }
-
+          
           if (-not $hasIssues) {
             echo "✅ No suspicious patterns found." >> $env:GITHUB_STEP_SUMMARY
           }
+          
+          echo '```' >> $env:GITHUB_STEP_SUMMARY
 
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
