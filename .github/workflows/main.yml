@@ -89,7 +89,7 @@ jobs:
                 }
 
                 if ($line.Length -gt 120) {
-                  echo "$file:$lineno => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
+                  echo "${file}:${lineno} => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
 
