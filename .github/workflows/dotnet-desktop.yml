@@ -67,30 +67,42 @@ jobs:
           foreach ($file in $changedFiles) {
             if (Test-Path $file) {
               $lines = Get-Content $file
+              $consecutiveEmpty = 0  # 連續空行計數器
+              
               for ($i = 0; $i -lt $lines.Count; $i++) {
                 $line = $lines[$i]
                 $lineno = $i + 1
+                $lineIssues = @()
 
+                # 檢查預定義模式
                 foreach ($msg in $patterns.Keys) {
                   if ($line -match $patterns[$msg]) {
-                    echo "${file}:${lineno} => $msg" >> $env:GITHUB_STEP_SUMMARY
+                    $lineIssues += $msg
                     $hasIssues = $true
                   }
                 }
 
+                # 檢查行長
                 if ($line.Length -gt 120) {
-                  echo "${file}:${lineno} => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
+                  $lineIssues += "❗ 行長超過 120 字元"
                   $hasIssues = $true
                 }
 
-                if (
-                  $i -gt 1 -and
-                  $lines[$i] -eq "" -and
-                  $lines[$i-1] -eq "" -and
-                  $lines[$i-2] -eq ""
-                ) {
-                  echo "${file}:${lineno} => ❗ 三個以上連續空行" >> $env:GITHUB_STEP_SUMMARY
-                  $hasIssues = $true
+                # 檢查連續空行 (新邏輯)
+                if ($line -eq "") {
+                  $consecutiveEmpty++
+                  if ($consecutiveEmpty -eq 3) {
+                    $lineIssues += "❗ 三個以上連續空行"
+                    $hasIssues = $true
+                  }
+                } else {
+                  $consecutiveEmpty = 0  # 遇到非空行重置計數
+                }
+
+                # 報告該行所有問題
+                if ($lineIssues.Count -gt 0) {
+                  $issuesText = $lineIssues -join ", "
+                  echo "${file}:${lineno} => $issuesText" >> $env:GITHUB_STEP_SUMMARY
                 }
               }
             }
