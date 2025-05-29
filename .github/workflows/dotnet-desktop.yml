@@ -54,11 +54,11 @@ jobs:
           echo "```" >> $env:GITHUB_STEP_SUMMARY
 
           $patterns = @{
-            "❗ 空註解行" = '^\s*//\s*$'
-            "❗ 只有數字的註解" = '^\s*//\s*\d{3,}\s*$'
-            "❗ 包含 Console.WriteLine" = 'Console\.WriteLine'
-            "❗ 包含 TODO 或 FIXME" = 'TODO|FIXME'
-            "❗ 行尾空白" = '\s+$'
+            "空註解行" = '^\s*//\s*$'
+            "只有數字的註解" = '^\s*//\s*\d{3,}\s*$'
+            "包含 Console.WriteLine" = 'Console\.WriteLine'
+            "包含 TODO 或 FIXME" = 'TODO|FIXME'
+            "行尾空白" = '\s+$'
           }
 
           $hasIssues = $false
@@ -77,7 +77,7 @@ jobs:
                 # 檢查預定義模式
                 foreach ($msg in $patterns.Keys) {
                   if ($line -match $patterns[$msg]) {
-                    $lineIssues += $msg
+                    $lineIssues += "❗ $msg"
                     $hasIssues = $true
                   }
                 }
@@ -88,8 +88,8 @@ jobs:
                   $hasIssues = $true
                 }
 
-                # 檢查連續空行 (新邏輯)
-                if ($line -eq "") {
+                # 檢查連續空行
+                if ($line -match '^\s*$') {
                   $consecutiveEmpty++
                   if ($consecutiveEmpty -eq 3) {
                     $lineIssues += "❗ 三個以上連續空行"
