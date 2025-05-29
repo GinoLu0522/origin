@@ -28,8 +28,7 @@ jobs:
 
       - name: Restore dependencies
         working-directory: ${{ env.CODE_ROOT }}
-        run: |
-          msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=Release
+        run: msbuild $env:SOLUTION_NAME /t:Restore /p:Configuration=Release
 
       - name: Build solution
         working-directory: ${{ env.CODE_ROOT }}
@@ -40,31 +39,52 @@ jobs:
       - name: Code Review - Build Errors
         if: failure()
         working-directory: ${{ env.CODE_ROOT }}
+        shell: pwsh
         run: |
           echo "### ❌ Build Failed" >> $env:GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+          echo "```" >> $env:GITHUB_STEP_SUMMARY
           Get-Content msbuild.log >> $env:GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
-        shell: pwsh
+          echo "```" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Code Review - Suspicious Comments
+      - name: Code Review - Static Checks
         shell: pwsh
+        working-directory: ${{ env.CODE_ROOT }}
         run: |
-          echo "### 🧠 Code Review (Suspicious Comments)" >> $env:GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+          echo "### 🧠 Code Review (Static Analysis)" >> $env:GITHUB_STEP_SUMMARY
+          echo "```" >> $env:GITHUB_STEP_SUMMARY
 
-          $pattern = '^\s*//\s*\d{3,}\s*$'
-          $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
+          $patterns = @{
+            "❗ 空註解行" = '^\s*//\s*$'
+            "❗ 只有數字的註解" = '^\s*//\s*\d{3,}\s*$'
+            "❗ 包含 Console.WriteLine" = 'Console\.WriteLine'
+            "❗ 包含 TODO 或 FIXME" = 'TODO|FIXME'
+            "❗ 行尾空白" = '\s+$'
+          }
+
           $hasIssues = $false
+          $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
 
           foreach ($file in $changedFiles) {
             if (Test-Path $file) {
               $lines = Get-Content $file
               for ($i = 0; $i -lt $lines.Count; $i++) {
                 $line = $lines[$i]
-                if ($line -match $pattern) {
-                  $output = "${file}:$($i+1) => '$line'"
-                  echo $output >> $env:GITHUB_STEP_SUMMARY
+                $lineno = $i + 1
+
+                foreach ($msg in $patterns.Keys) {
+                  if ($line -match $patterns[$msg]) {
+                    echo "${file}:${lineno} => $msg" >> $env:GITHUB_STEP_SUMMARY
+                    $hasIssues = $true
+                  }
+                }
+
+                if ($line.Length -gt 120) {
+                  echo "${file}:${lineno} => ❗ 行長超過 120 字元" >> $env:GITHUB_STEP_SUMMARY
+                  $hasIssues = $true
+                }
+
+                if ($i -gt 1 -and $lines[$i] -eq "" -and $lines[$i-1] -eq "" -and $lines[$i-2] -eq "") {
+                  echo "${file}:${lineno} => ❗ 三個以上連續空行" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
               }
@@ -72,7 +92,7 @@ jobs:
           }
 
           if (-not $hasIssues) {
-            echo "✅ No suspicious comment-only numbers found." >> $env:GITHUB_STEP_SUMMARY
+            echo "✅ No suspicious patterns found." >> $env:GITHUB_STEP_SUMMARY
           }
 
-          echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+          echo "```" >> $env:GITHUB_STEP_SUMMARY
