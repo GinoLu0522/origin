@@ -46,7 +46,7 @@ jobs:
           Get-Content msbuild.log >> $env:GITHUB_STEP_SUMMARY
           echo "```" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Code Review - Static Checks
+            - name: Code Review - Static Checks
         shell: pwsh
         working-directory: ${{ env.CODE_ROOT }}
         run: |
@@ -83,7 +83,12 @@ jobs:
                   $hasIssues = $true
                 }
 
-                if ($i -gt 1 -and $lines[$i] -eq "" -and $lines[$i-1] -eq "" -and $lines[$i-2] -eq "") {
+                if (
+                  $i -gt 1 -and
+                  $lines[$i] -eq "" -and
+                  $lines[$i-1] -eq "" -and
+                  $lines[$i-2] -eq ""
+                ) {
                   echo "${file}:${lineno} => ❗ 三個以上連續空行" >> $env:GITHUB_STEP_SUMMARY
                   $hasIssues = $true
                 }
