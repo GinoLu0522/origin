@@ -50,10 +50,10 @@ jobs:
       - name: Code Review - Suspicious Comments
         shell: pwsh
         run: |
-          echo "### 🧠 Code Review (Suspicious Comments)" >> $env:GITHUB_STEP_SUMMARY
+          echo "### 🧠 Code Review (Suspicious or Empty Comments)" >> $env:GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
 
-          $pattern = '^\s*//\s*\d{3,}\s*$'
+          $pattern = '^\s*//\s*$'  # 僅有 // 或 // 加空格
           $changedFiles = git diff --name-only origin/master | Where-Object { $_.EndsWith(".cs") }
           $hasIssues = $false
 
@@ -72,7 +72,8 @@ jobs:
           }
 
           if (-not $hasIssues) {
-            echo "✅ No suspicious comment-only numbers found." >> $env:GITHUB_STEP_SUMMARY
+            echo "✅ No empty or whitespace-only comment lines found." >> $env:GITHUB_STEP_SUMMARY
           }
 
           echo "\`\`\`" >> $env:GITHUB_STEP_SUMMARY
+
